@@ -1,0 +1,6 @@
+glitch-init.sh
+.bashrc.*
+.bash_it/
+.config/configstore/update-notifier-pnpm.json
+.gitconfig
+shrinkwrap.yaml
