@@ -1,27 +1,7 @@
-Welcome to the Glitch BETA
-=========================
+# Astronomical TwitterBot
 
-Click `Show` in the header to see your app live. Updates to your code will instantly deploy and update live.
+Inspired by
 
-**Glitch** is the friendly community where you'll build the app of your dreams. Glitch lets you instantly create, remix, edit, and host an app, bot or site, and you can invite collaborators or helpers to simultaneously edit code with you.
+> <a href="https://twitter.com/hashtag/botIDEA?src=hash&amp;ref_src=twsrc%5Etfw">#botIDEA</a> A bot that you @-message with the name of a solar system object<br><br>It waits for the length of time you&#39;d need for a radio message to get there and back, and only then does it reply &mdash; dull thud (@dullthud) <a href="https://twitter.com/dullthud/status/954813152948051968?ref_src=twsrc%5Etfw">January 20, 2018</a>
 
-Find out more [about Glitch](https://glitch.com/about).
-
-
-Your Project
-------------
-
-On the front-end,
-- edit `public/client.js`, `public/style.css` and `views/index.html`
-- drag in `assets`, like images or music, to add them to your project
-
-On the back-end,
-- your app starts at `server.js`
-- add frameworks and packages in `package.json`
-- safely store app secrets in `.env` (nobody can see this but you and people you invite)
-
-
-Made by [Fog Creek](https://fogcreek.com/)
--------------------
-
-\ ゜o゜)ノ
+using data from [JPL's Horizons](https://ssd.jpl.nasa.gov/horizons.cgi) site.

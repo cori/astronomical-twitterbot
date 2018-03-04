@@ -3,15 +3,18 @@
   "//2": "https://docs.npmjs.com/files/package.json",
   "//3": "updating this file will download and update your packages",
 
-  "name": "my-glitch-app",
+  "name": "astronomical-twitterbot",
   "version": "0.0.1",
-  "description": "What am I about?",
+  "description": "Tweet an Astronomical body's name at me and I'll tweet you back when a round-trip message would have returned.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "poststart": "bash ~/glitch-init.sh"
   },
   "dependencies": {
-    "express": "^4.16.2"
+    "express": "^4.16.2",
+    "request": "^2.83.0",
+    "parse5": "^4.0.0"
   },
   "engines": {
     "node": "8.x"
