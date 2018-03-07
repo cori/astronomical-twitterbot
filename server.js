@@ -1,3 +1,6 @@
+//  TODO:  add bot-ness
+//  TODO:  how to organize the "API" vs the bot?
+
 // init project
 var express = require('express');
 var app = express();
@@ -17,11 +20,11 @@ app.get("/", function (request, response) {
 });
 
 app.get("/api/v1", function( request, response ) {
-  horizons_find_astro_body_step();
-  response.send('This is an api for testing');
+  response.send('This is an api for testing')
 });
 
 app.post("/api/v1", function( request, response ) {
+  //  TODO: should the step requests just be chained? They're just building up the session data for the final request.
   horizons_find_astro_body_step();
   // response.send('This is an api for testing');
 });
@@ -36,13 +39,14 @@ var listener = app.listen(process.env.PORT, function () {
 //    so we need to reuse the session cookie from the first request
 
 function horizons_find_astro_body_step( name ) {
-  name="sol";
+//  name="sol";
 //  curl -d sstr=sedna -d body_group=all -d find_body=Search -d mb_list=planet https://ssd.jpl.nasa.gov/horizons.cgi -v 
-  requestor.post({ jar: j, url: horizonsUri, form: {sstr:name,body_group:'all',find_body:'Search',mb_list:'planet'}}, function( error, response, body ) {
+  requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}}, function( error, response, body ) {
     console.log('error:', error); // Print the error if one occurred
     console.log('statusCode:', response && response.statusCode); // Print the response status code if a response was received
-    console.log(body); // Print the HTML for the Google homepage.
-
+//    console.log(body); // Print the HTML from the response
+  
+//  TODO:  parse the reponse body, looking for this content, or a subset thereof, and return, skipping the rest of the chain
 //  missing celestial body results in 
 /*
 <div class="error">
@@ -54,7 +58,7 @@ function horizons_find_astro_body_step( name ) {
 </div>
 */
     
-});
+  });
   
 }
 
