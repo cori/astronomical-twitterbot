@@ -1,5 +1,5 @@
-//  TODO:  add bot-ness
-//  TODO:  how to organize the "API" vs the bot?
+//  TODO: add bot-ness id:0 gh:2 ic:gh
+//  TODO: how to organize the "API" vs the bot? id:1 gh:3 ic:gh
 
 // init project
 var express = require('express');
@@ -24,7 +24,7 @@ app.get("/api/v1", function( request, response ) {
 });
 
 app.post("/api/v1", function( request, response ) {
-  //  TODO: should the step requests just be chained? They're just building up the session data for the final request.
+  //  TODO: should the step requests just be chained? They're just building up the session data for the final request. id:3 gh:5 ic:gh
   horizons_find_astro_body_step();
   // response.send('This is an api for testing');
 });
@@ -46,7 +46,7 @@ function horizons_find_astro_body_step( name ) {
     console.log('statusCode:', response && response.statusCode); // Print the response status code if a response was received
 //    console.log(body); // Print the HTML from the response
   
-//  TODO:  parse the reponse body, looking for this content, or a subset thereof, and return, skipping the rest of the chain
+//  TODO: parse the reponse body, looking for this content, or a subset thereof, and return, skipping the rest of the chain id:2 gh:4 ic:gh
 //  missing celestial body results in 
 /*
 <div class="error">
