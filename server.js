@@ -44,7 +44,7 @@ var listener = app.listen(process.env.PORT, function () {
 //    Horizon tracks the state of the current configuration with sessions, 
 //    so we need to reuse the session cookie from the first request
 
-//  TODO:  extract the request pattern
+//  TODO: extract the request pattern id:4 gh:7 ic:gh
 function horizons_find_astro_body_step( name ) {
   console.clear();
 //  curl -d sstr=sedna -d body_group=all -d find_body=Search -d mb_list=planet https://ssd.jpl.nasa.gov/horizons.cgi -v 
@@ -134,7 +134,7 @@ function horizons_set_display_step( start_time ) {
 function horizons_send_query( start_time ) {
 //  curl -v --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d go="Generate Ephemeris" https://ssd.jpl.nasa.gov/horizons.cgi#results
   
-//  TODO:  handle the final error model
+//  TODO: handle the final error model id:5 gh:8 ic:gh
 // *** Horizons ERROR/Unexpected Results ***
 
 
@@ -163,5 +163,5 @@ function horizons_send_query( start_time ) {
 }
 
 function find_light_time( output, start_time ) {
-  //  TODO:  use the start_time to find the appropriate row in the output tablbe, then grab the 1-way_LT column's value
+  //  TODO: use the start_time to find the appropriate row in the output tablbe, then grab the 1-way_LT column's value id:6 gh:9 ic:gh
 }
