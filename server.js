@@ -29,9 +29,9 @@ app.get("/api/v1/:astroBody", function( request, response ) {
   response.send(step1);
 });
 
-app.post("/api/v1/:astroBody", function( request, response ) {
-  //  TODO: should the step requests just be chained? They're just building up the session data for the final request.
-  horizons_find_astro_body_step( request.params.astroBody );
+app.post("/api/v1", function( request, response ) {
+  //  TODO: should the step requests just be chained? They're just building up the session data for the final request. id:3 gh:5 ic:gh
+  horizons_find_astro_body_step();
   // response.send('This is an api for testing');
 });
 
