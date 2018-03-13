@@ -7,7 +7,10 @@ var app = express();
 
 var requestor = require('request');
 var j = requestor.jar();
-var parser = require('parse5');
+
+var cheerio = require('cheerio');
+
+var iso8601 = require('iso8601.js')
 
 var horizonsUri = 'https://ssd.jpl.nasa.gov/horizons.cgi';
 
@@ -15,17 +18,19 @@ var horizonsUri = 'https://ssd.jpl.nasa.gov/horizons.cgi';
 app.use(express.static('public'));
 
 // http://expressjs.com/en/starter/basic-routing.html
-app.get("/", function (request, response) {
+app.get("/", function (request, response) {      
   response.send('This will be a bot');
 });
 
-app.get("/api/v1", function( request, response ) {
-  response.send('This is an api for testing')
+app.get("/api/v1/:astroBody", function( request, response ) {
+  var step1 = horizons_find_astro_body_step( request.params.astroBody );
+  console.log("step: " + step1);
+  response.send(step1);
 });
 
-app.post("/api/v1", function( request, response ) {
+app.post("/api/v1/:astroBody", function( request, response ) {
   //  TODO: should the step requests just be chained? They're just building up the session data for the final request.
-  horizons_find_astro_body_step();
+  horizons_find_astro_body_step( request.params.astroBody );
   // response.send('This is an api for testing');
 });
 
@@ -39,31 +44,43 @@ var listener = app.listen(process.env.PORT, function () {
 //    so we need to reuse the session cookie from the first request
 
 function horizons_find_astro_body_step( name ) {
-//  name="sol";
 //  curl -d sstr=sedna -d body_group=all -d find_body=Search -d mb_list=planet https://ssd.jpl.nasa.gov/horizons.cgi -v 
   requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}}, function( error, response, body ) {
-    console.log('error:', error); // Print the error if one occurred
-    console.log('statusCode:', response && response.statusCode); // Print the response status code if a response was received
-//    console.log(body); // Print the HTML from the response
-  
-//  TODO:  parse the reponse body, looking for this content, or a subset thereof, and return, skipping the rest of the chain
-//  missing celestial body results in 
-/*
-<div class="error">
-<a name="top"><b>&nbsp; ERROR:</b>
-</a><ul>
-<li>no matching body found
-<li>please check your input and try again
-</ul>
-</div>
-*/
     
+    var dom = cheerio.load(body);
+    var errorNode = dom('.error');
+    if( errorNode.length > 0 ) {
+      console.log( "Horizons returned an error; most likely the celestial body you requested could not be found.");
+      return "error";
+    } else {
+      var step2 = horizons_set_time_interval_step();
+      console.log("step2: " +step2);
+      return step2;
+    }
+        
   });
   
 }
 
 function horizons_set_time_interval_step() {
-//  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d start_time="2018-02-25 12:00" -d stop_time="2018-02-25 12:01" -d step_size=1 -d interval_mode=f -d set_time_span="Use Specified Times" https://ssd.jpl.nasa.gov/horizons.cgi -v  
+//  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d start_time="2018-02-25 12:00" -d stop_time="2018-02-25 12:01" -d step_size=1 -d interval_mode=f -d set_time_span="Use Specified Times" https://ssd.jpl.nasa.gov/horizons.cgi -v
+  var now = new Date();
+  var then = new Date();
+  then.setMinutes(now.getMinutes()+1);
+  requestor.post({ jar: j, url: horizonsUri, form: {start_time:now, stop_time:then, step_size:'1', interval_mode:'f', set_time_span: 'Use Specified Times'}}, function( error, response, body ) {
+    
+    var dom = cheerio.load(body);
+    var errorNode = dom('.error');
+    if( errorNode.length > 0 ) {
+      console.log( "Horizons returned an error; most likely the celestial body you requested could not be found.");
+      return "error";
+    } else {
+      console.log("step2: " + body);
+      return body;
+    }
+    
+  });
+  
 }
 
 function horizons_set_display_step() {
