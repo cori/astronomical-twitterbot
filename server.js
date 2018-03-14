@@ -1,9 +1,9 @@
-//  TODO:  add bot-ness id:0 gh:2 ic:gh
-//  TODO:  how to organize the "API" vs the bot? id:1 gh:3 ic:gh
-//  TODO:  logging?
-//  TODO:  data persistance?
-//  TODO:  set up cron
-//  TODO:  reply immediately if 2*lt < ~5 minutes (the period I'll poll twitter for new messages)
+//  TODO: add bot-ness id:0 gh:2 ic:gh
+//  TODO: how to organize the "API" vs the bot? id:1 gh:3 ic:gh
+//  TODO: logging? id:8 gh:12 ic:gh
+//  TODO: data persistance? id:7 gh:11 ic:gh
+//  TODO: set up cron id:9 gh:13 ic:gh
+//  TODO: reply immediately if 2*lt < ~5 minutes (the period I'll poll twitter for new messages) id:10 gh:14 ic:gh
 
 // init project
 var express = require('express');
