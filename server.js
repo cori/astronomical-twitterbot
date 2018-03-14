@@ -1,5 +1,9 @@
-//  TODO: add bot-ness id:0 gh:2 ic:gh
-//  TODO: how to organize the "API" vs the bot? id:1 gh:3 ic:gh
+//  TODO:  add bot-ness id:0 gh:2 ic:gh
+//  TODO:  how to organize the "API" vs the bot? id:1 gh:3 ic:gh
+//  TODO:  logging?
+//  TODO:  data persistance?
+//  TODO:  set up cron
+//  TODO:  reply immediately if 2*lt < ~5 minutes (the period I'll poll twitter for new messages)
 
 // init project
 var express = require('express');
@@ -30,7 +34,6 @@ app.get("/api/v1/:astroBody", function( request, response ) {
 });
 
 app.post("/api/v1", function( request, response ) {
-  //  TODO: should the step requests just be chained? They're just building up the session data for the final request. id:3 gh:5 ic:gh
   horizons_find_astro_body_step();
   // response.send('This is an api for testing');
 });
@@ -57,8 +60,8 @@ function horizons_find_astro_body_step( name ) {
       return "error";
     } else {
       var step2 = horizons_set_time_interval_step();
-      console.log("step2: " + step2);
-      console.log(j);
+      // console.log("step2: " + step2);
+      // console.log(j);
       return step2;
     }
         
@@ -83,8 +86,8 @@ function horizons_set_time_interval_step() {
       console.log( "Horizons returned an error.");
       return "error";
     } else {
-      var step3 = horizons_set_out_table_step( now.replace( 'T', ' ' ) );
-      console.log("step3: " + settings);
+      var step3 = horizons_set_out_table_step( now.replace( 'T', ' ' ), then.replace( 'T', ' ') );
+      // console.log("step3: " + settings);
       return step3;
     }
     
@@ -92,7 +95,7 @@ function horizons_set_time_interval_step() {
   
 }
 
-function horizons_set_out_table_step( start_time ) {
+function horizons_set_out_table_step( start_time, end_time ) {
 //  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d oq_21=1 -d time_digits=MINUTES -d set_table="Use Selected Settings" -d set_table_settings=1 https://ssd.jpl.nasa.gov/horizons.cgi -v
   requestor.post({ jar: j, url: horizonsUri, form: {oq_21:'1', time_digits:'MINUTES', obj_data:'NO', set_table_settings:'1', set_table: 'Use Settings Abbove'}}, function( error, response, body ) {
     
@@ -103,15 +106,15 @@ function horizons_set_out_table_step( start_time ) {
       console.log( "Horizons returned an error.");
       return "error";
     } else {
-      var step4 = horizons_set_display_step( start_time );
-      console.log("step4: " + settings);
+      var step4 = horizons_set_display_step( start_time, end_time );
+      // console.log("step4: " + settings);
       return step4;
     }
     
   });
 }
 
-function horizons_set_display_step( start_time ) {
+function horizons_set_display_step( start_time, end_time ) {
 //  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d display=TEXT -d .cgifields=display -d set_display="Use Selection Above" https://ssd.jpl.nasa.gov/horizons.cgi -v  
   
   requestor.post({ jar: j, url: horizonsUri, form: {display:'TEXT', set_display:'Use Selection Above'}}, function( error, response, body ) {
@@ -122,8 +125,8 @@ function horizons_set_display_step( start_time ) {
       console.log( "Horizons returned an error.");
       return "error";
     } else {
-      var step5 = horizons_send_query( start_time );
-      console.log("step5: " + step5);
+      var step5 = horizons_send_query( start_time, end_time );
+      // console.log("step5: " + step5);
       return step5;
     }
     
@@ -131,7 +134,7 @@ function horizons_set_display_step( start_time ) {
 
 }
 
-function horizons_send_query( start_time ) {
+function horizons_send_query( start_time, end_time ) {
 //  curl -v --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d go="Generate Ephemeris" https://ssd.jpl.nasa.gov/horizons.cgi#results
   
 //  TODO: handle the final error model id:5 gh:8 ic:gh
@@ -152,16 +155,18 @@ function horizons_send_query( start_time ) {
       console.log( "Horizons returned an error.");
       return "error";
     } else {
-      console.log(j);
-      console.log("step5: " + body);
-      console.log( start_time );
-      return body;
+      var lt = find_light_time( body, start_time, end_time );
+      // console.log(j);
+      // console.log("step5: " + body);
+      return lt;
     }
     
   });
 
 }
 
-function find_light_time( output, start_time ) {
-  //  TODO: use the start_time to find the appropriate row in the output tablbe, then grab the 1-way_LT column's value id:6 gh:9 ic:gh
+function find_light_time( output, start_time, end_time ) {
+  //  this is a little fragile
+  //  the times appear in the output table more than once as of 2018-03-14, but....
+  var lt = output.split(start_time)[2].split(end_time)[0].trimLeft();
 }
