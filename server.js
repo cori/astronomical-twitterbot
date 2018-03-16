@@ -224,13 +224,13 @@ app.all("/tweet", function (request, response) {
             in_reply_to_status_id: status.id_str
           }, function(err, data, response) {
             if (err){
-                /* TODO: Proper error handling? */
+                /* TODO: Proper error handling? id:14 gh:19 ic:gh*/
               console.log('Error!');
               console.log(err);
             }
             else{
               fs.writeFile(__dirname + '/last_mention_id.txt', status.id_str, function (err) {
-                /* TODO: Error handling? */
+                /* TODO: Error handling? id:13 gh:18 ic:gh*/
               });
             }
           });
@@ -262,13 +262,13 @@ app.all("/tweet", function (request, response) {
             text: random_from_array(bot_responses)
           }, function(err, data, response) {
             if (err){
-              /* TODO: Proper error handling? */
+              /* TODO: Proper error handling? id:11 gh:16 ic:gh*/
               console.log('Error!');
               console.log(err);
             }
             else{
               fs.writeFile(__dirname + '/last_dm_id.txt', dm.id_str, function (err) {
-                /* TODO: Error handling? */
+                /* TODO: Error handling? id:12 gh:17 ic:gh*/
               });
             }
           });
@@ -280,6 +280,6 @@ app.all("/tweet", function (request, response) {
     });    
   });  
   
-  /* TODO: Handle proper responses based on whether the tweets succeed, using Promises. For now, let's just return a success message no matter what. */
+  /* TODO: Handle proper responses based on whether the tweets succeed, using Promises. For now, let's just return a success message no matter what. id:15 gh:20 ic:gh*/
   response.sendStatus(200);
 });
