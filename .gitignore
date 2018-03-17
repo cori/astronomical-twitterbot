@@ -4,3 +4,4 @@ glitch-init.sh
 .config/
 .gitconfig
 shrinkwrap.yaml
+last_mention_id.txt
