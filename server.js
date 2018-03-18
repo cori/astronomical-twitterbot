@@ -23,27 +23,11 @@ app.get("/", function (request, response) {
 });
 
 app.get("/api/v1/:astroBody", function( request, response ) {
-  j = requestor.jar();  //  need a new jar on every request to reset the session
-  var step1 = horizons_find_astro_body_step( request.params.astroBody )
-    .then( function ( stepInfo ) {
-      console.log("step: " + stepInfo);
-      response.send(stepInfo);
-  }).catch( function( error ) {
-    console.log( 'Exception2: ' + error + error.stack );
-    response.send(error.message);
-  });
-});
-
-//  fake out a Horizon API
-//    Horizon tracks the state of the current configuration with sessions, 
-//    so we need to reuse the session cookie from the first request
-
-//  TODO: extract the request pattern id:4 gh:7 ic:gh
-function horizons_find_astro_body_step( name ) {
-  
   var time_boundaries = new Object();
-  var step1 = requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}});
-  
+  j = requestor.jar();  //  need a new jar on every request to reset the session
+
+  var step1 = horizons_find_astro_body_step( request.params.astroBody );
+
   var step2 = step1.then ( function( body ) {
       var dom = cheerio.load(body);
       var errorNode = dom('.error');
@@ -80,7 +64,25 @@ function horizons_find_astro_body_step( name ) {
       throw new Error( err );
     });
     
+  step5.then( function( stepData ) {
+    console.log( 'final info: ' + stepData );
+    response.send( stepData );
+    })
+    .catch( function( err ) {
+      throw new Error( err );
+    });
+  
   return step5;
+});
+
+//  fake out a Horizon API
+//    Horizon tracks the state of the current configuration with sessions, 
+//    so we need to reuse the session cookie from the first request
+
+//  TODO: extract the request pattern id:4 gh:7 ic:gh
+function horizons_find_astro_body_step( name ) {
+  
+  return requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}});  
   
 }
 
