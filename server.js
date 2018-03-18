@@ -42,6 +42,7 @@ app.get("/api/v1/:astroBody", function( request, response ) {
 //  TODO: extract the request pattern id:4 gh:7 ic:gh
 function horizons_find_astro_body_step( name ) {
 //  curl -d sstr=sedna -d body_group=all -d find_body=Search -d mb_list=planet https://ssd.jpl.nasa.gov/horizons.cgi -v 
+  var time_boundaries = new Object();
   var step1 = requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}});
   
   var step2 = step1.then ( function( body ) {
@@ -60,23 +61,22 @@ function horizons_find_astro_body_step( name ) {
     });
   
   var step3 = step2.then( function( stepData ) {
-    console.log("step2 now: " + stepData.now);
-    console.log("step2 then: " + stepData.then);
-    return horizons_set_out_table_step( stepData.now, stepData.then);
+    time_boundaries = stepData;
+    return horizons_set_out_table_step();
     })
     .catch( function( err ) {
       throw new Error( err );
     });
   
   var step4 = step3.then( function( stepData ) {
-    return horizons_set_display_step( stepData.now, stepData.then );
+    return horizons_set_display_step();
     })
     .catch( function( err ) {
       throw new Error( err );
     });
   
   var step5 = step4.then( function( stepData ) {
-    return horizons_send_query( stepData.now, stepData.then );
+    return horizons_send_query( time_boundaries );
     })
     .catch( function( err ) {
       throw new Error( err );
@@ -106,7 +106,7 @@ function horizons_set_time_interval_step() {
   then.setMinutes(now.getMinutes()+1);
   now = moment(now).format('YYYY-MMM-D HH:mm');
   then = moment(then).format('YYYY-MMM-D HH:mm');
-  var thisObj = new Object();
+  var time_boundaries = new Object();
 
   return requestor.post({ jar: j, url: horizonsUri, form: {start_time:now, stop_time:then, step_size:'1', interval_mode:'m', set_time_span: 'Use Specified Times'}})
     .then( function( body ) {
@@ -117,9 +117,9 @@ function horizons_set_time_interval_step() {
         var errorStr = 'Horizons returned an error.';
         throw new Error( errorStr );
       } else {
-        thisObj.now = now.replace( 'T', ' ');
-        thisObj.then = then.replace( 'T', ' ');
-        return thisObj;
+        time_boundaries.start = now.replace( 'T', ' ');
+        time_boundaries.end = then.replace( 'T', ' ');
+        return time_boundaries;
         // var step3 = horizons_set_out_table_step( now.replace( 'T', ' ' ), then.replace( 'T', ' ') );
         // console.log("step3: " + settings);
         // return step3;
@@ -130,13 +130,10 @@ function horizons_set_time_interval_step() {
     });
 }
 
-function horizons_set_out_table_step( start_time, end_time ) {
+function horizons_set_out_table_step( ) {
 //  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d oq_21=1 -d time_digits=MINUTES -d set_table="Use Selected Settings" -d set_table_settings=1 https://ssd.jpl.nasa.gov/horizons.cgi -v
-  var thisObj = new Object();
   return requestor.post({ jar: j, url: horizonsUri, form: {oq_21:'1', time_digits:'MINUTES', obj_data:'NO', set_table_settings:'1', set_table: 'Use Settings Abbove'}})
     .then( function( body ) {
-      console.log( 'out table: ' + start_time );
-      console.log( 'out table: ' + end_time );
       var dom = cheerio.load(body);
       var errorNode = dom('.error');
       var settings = dom('h3').next();
@@ -144,9 +141,7 @@ function horizons_set_out_table_step( start_time, end_time ) {
         console.log( "Horizons returned an error.");
         return "error";
       } else {
-        thisObj.now = start_time;
-        thisObj.then = end_time;
-        return thisObj;
+        return;
         // var step4 = horizons_set_display_step( start_time, end_time );
         // console.log("step4: " + settings);
         // return step4;
@@ -159,20 +154,15 @@ function horizons_set_out_table_step( start_time, end_time ) {
 
 function horizons_set_display_step( start_time, end_time ) {
 //  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d display=TEXT -d .cgifields=display -d set_display="Use Selection Above" https://ssd.jpl.nasa.gov/horizons.cgi -v  
-  var thisObj = new Object();
   return requestor.post({ jar: j, url: horizonsUri, form: {display:'TEXT', set_display:'Use Selection Above'}})
     .then( function( body ) {
-      console.log( 'display: ' + start_time );
-      console.log( 'display: ' + end_time );
       var dom = cheerio.load(body);
       var errorNode = dom('.error');
       if( errorNode.length > 0 ) {
         console.log( "Horizons returned an error.");
         return "error";
       } else {
-        thisObj.now = start_time;
-        thisObj.then = end_time;
-        return thisObj;
+        return;
       }
     })
     .catch( function( err ) {
@@ -180,7 +170,7 @@ function horizons_set_display_step( start_time, end_time ) {
     });
 }
 
-function horizons_send_query( start_time, end_time ) {
+function horizons_send_query( time_boundaries ) {
 //  curl -v --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d go="Generate Ephemeris" https://ssd.jpl.nasa.gov/horizons.cgi#results
   
 //  TODO: handle the final error model id:5 gh:8 ic:gh
@@ -195,16 +185,13 @@ function horizons_send_query( start_time, end_time ) {
   
   return requestor.post({ jar: j, url: horizonsUri, form: {go:'Generate Ephemeris'}})
     .then( function( body ) {
-      console.log( 'send: ' + start_time );
-      console.log( 'send: ' + end_time );
-
       var dom = cheerio.load(body);
       var errorNode = dom('.error');
       if( errorNode.length > 0 ) {
         console.log( "Horizons returned an error.");
         return "error";
       } else {
-        var lt = extract_one_way_light_time( body, start_time, end_time );
+        var lt = extract_one_way_light_time( body, time_boundaries );
         // console.log(j);
         // console.log("step5: " + body);
         var rt = convert_owlt_to_round_trip( lt );
@@ -217,10 +204,10 @@ function horizons_send_query( start_time, end_time ) {
     });
 }
 
-function extract_one_way_light_time( output, start_time, end_time ) {
+function extract_one_way_light_time( output, time_boundaries ) {
   //  this is a little fragile
   //  the times appear in the output table more than once as of 2018-03-14, but....
-  var lt = output.split(start_time)[2].split(end_time)[0].trimLeft();
+  var lt = output.split(time_boundaries.start)[2].split(time_boundaries.end)[0].trimLeft();
   return lt;
 }
 
