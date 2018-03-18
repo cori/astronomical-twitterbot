@@ -9,7 +9,6 @@
 var express = require('express');
 var app = express();
 
-// var requestor = require('request');
 var requestor = require('request-promise')
 var j = requestor.jar();
 
@@ -19,9 +18,6 @@ var moment = require('moment');
 
 var horizonsUri = 'https://ssd.jpl.nasa.gov/horizons.cgi';
 
-// http://expressjs.com/en/starter/static-files.html
-app.use(express.static('public'));
-
 // http://expressjs.com/en/starter/basic-routing.html
 app.get("/", function (request, response) {      
   response.send('This will be a bot');
@@ -29,24 +25,14 @@ app.get("/", function (request, response) {
 
 app.get("/api/v1/:astroBody", function( request, response ) {
   j = requestor.jar();  //  need a new jar on every request to reset the session
-  horizons_find_astro_body_step( request.params.astroBody )
+  var step1 = horizons_find_astro_body_step( request.params.astroBody )
     .then( function ( stepInfo ) {
       console.log("step: " + stepInfo);
       response.send(stepInfo);
-  })
-  .catch( function( error ) {
-    console.log( 'Exception2: ' + error );
+  }).catch( function( error ) {
+    console.log( 'Exception2: ' + error + error.stack );
+    response.send(error.message);
   });
-});
-
-app.post("/api/v1", function( request, response ) {
-  horizons_find_astro_body_step();
-  // response.send('This is an api for testing');
-});
-
-// listen for requests :)
-var listener = app.listen(process.env.PORT, function () {
-  console.log('Your app is listening on port ' + listener.address().port);
 });
 
 //  fake out a Horizon API
@@ -56,28 +42,61 @@ var listener = app.listen(process.env.PORT, function () {
 //  TODO: extract the request pattern id:4 gh:7 ic:gh
 function horizons_find_astro_body_step( name ) {
 //  curl -d sstr=sedna -d body_group=all -d find_body=Search -d mb_list=planet https://ssd.jpl.nasa.gov/horizons.cgi -v 
-  var step2 = {};
-  return requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}})
-    .then ( function( body ) {
+  var step1 = requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}});
+  
+  var step2 = step1.then ( function( body ) {
       var dom = cheerio.load(body);
       var errorNode = dom('.error');
       if( errorNode.length > 0 ) {
         var errorStr = 'Horizons returned an error; most likely the celestial body you requested, ' + name + ', could not be found.';
-        console.log( 'Pre-throw: ' + errorStr );
         throw new Error(errorStr);
       } else {
-        step2 = horizons_set_time_interval_step();
-        console.log("step2: " + step2);
-        // console.log(j);
-        // return step2;
+        return horizons_set_time_interval_step();
       }
-    }).then( function() {
-      var step3 = horizons_set_out_table_step( step2.now, step2.then);
-      return step3;
-  }).catch ( function (error) {
-      console.log( 'Exception1: ' + error);
+    })
+    .catch ( function (error) {
+      // console.log( 'Exception1: ' + error);
+      throw new Error( error );
     });
   
+  var step3 = step2.then( function( stepData ) {
+    console.log("step2 now: " + stepData.now);
+    console.log("step2 then: " + stepData.then);
+    return horizons_set_out_table_step( stepData.now, stepData.then);
+    })
+    .catch( function( err ) {
+      throw new Error( err );
+    });
+  
+  var step4 = step3.then( function( stepData ) {
+    return horizons_set_display_step( stepData.now, stepData.then );
+    })
+    .catch( function( err ) {
+      throw new Error( err );
+    });
+  
+  var step5 = step4.then( function( stepData ) {
+    return horizons_send_query( stepData.now, stepData.then );
+    })
+    .catch( function( err ) {
+      throw new Error( err );
+    });
+  
+          // var step5 = horizons_send_query( start_time, end_time );
+        // console.log("step5: " + step5);
+
+
+  // var step3 = step2.then( function( stepData ) {
+  //     console.log(step2);
+  //     console.log( stepData.now );
+  //     console.log( stepData.then );
+  //     var step3 = horizons_set_display_step( stepData.now, stepData.then);
+  //     return step3;
+  // }).catch( function( err ) {
+  //   throw new Error( err );
+  // });
+  
+  return step5;
 }
 
 function horizons_set_time_interval_step() {
@@ -90,66 +109,75 @@ function horizons_set_time_interval_step() {
   var thisObj = new Object();
 
   return requestor.post({ jar: j, url: horizonsUri, form: {start_time:now, stop_time:then, step_size:'1', interval_mode:'m', set_time_span: 'Use Specified Times'}})
-  .then( function( body ) {
-    var dom = cheerio.load(body);
-    var errorNode = dom('.error');
-    var settings = dom('h3').next();
-    if( errorNode.length > 0 ) {
-      var errorStr = 'Horizons returned an error.';
-      throw new Error( errorStr );
-    } else {
-      thisObj.now = now.replace( 'T', ' ');
-      thisObj.then = then.replace( 'T', ' ');
-      return thisObj;
-      // var step3 = horizons_set_out_table_step( now.replace( 'T', ' ' ), then.replace( 'T', ' ') );
-      // console.log("step3: " + settings);
-      // return step3;
-    }
-
-  })
-  .catch(function( error ) {
-    console.log(error);
-  });
+    .then( function( body ) {
+      var dom = cheerio.load(body);
+      var errorNode = dom('.error');
+      var settings = dom('h3').next();
+      if( errorNode.length > 0 ) {
+        var errorStr = 'Horizons returned an error.';
+        throw new Error( errorStr );
+      } else {
+        thisObj.now = now.replace( 'T', ' ');
+        thisObj.then = then.replace( 'T', ' ');
+        return thisObj;
+        // var step3 = horizons_set_out_table_step( now.replace( 'T', ' ' ), then.replace( 'T', ' ') );
+        // console.log("step3: " + settings);
+        // return step3;
+      }
+    })
+    .catch(function( error ) {
+      console.log(error);
+    });
 }
 
 function horizons_set_out_table_step( start_time, end_time ) {
 //  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d oq_21=1 -d time_digits=MINUTES -d set_table="Use Selected Settings" -d set_table_settings=1 https://ssd.jpl.nasa.gov/horizons.cgi -v
-  requestor.post({ jar: j, url: horizonsUri, form: {oq_21:'1', time_digits:'MINUTES', obj_data:'NO', set_table_settings:'1', set_table: 'Use Settings Abbove'}}, function( error, response, body ) {
-    console.log( 'out table: ' + start_time );
-    console.log( 'out table: ' + end_time );
-    var dom = cheerio.load(body);
-    var errorNode = dom('.error');
-    var settings = dom('h3').next();
-    if( errorNode.length > 0 ) {
-      console.log( "Horizons returned an error.");
-      return "error";
-    } else {
-      // var step4 = horizons_set_display_step( start_time, end_time );
-      // console.log("step4: " + settings);
-      // return step4;
-    }
-    
-  });
+  var thisObj = new Object();
+  return requestor.post({ jar: j, url: horizonsUri, form: {oq_21:'1', time_digits:'MINUTES', obj_data:'NO', set_table_settings:'1', set_table: 'Use Settings Abbove'}})
+    .then( function( body ) {
+      console.log( 'out table: ' + start_time );
+      console.log( 'out table: ' + end_time );
+      var dom = cheerio.load(body);
+      var errorNode = dom('.error');
+      var settings = dom('h3').next();
+      if( errorNode.length > 0 ) {
+        console.log( "Horizons returned an error.");
+        return "error";
+      } else {
+        thisObj.now = start_time;
+        thisObj.then = end_time;
+        return thisObj;
+        // var step4 = horizons_set_display_step( start_time, end_time );
+        // console.log("step4: " + settings);
+        // return step4;
+      }
+    })
+    .catch(function( error ) {
+      console.log(error);
+    });    
 }
 
 function horizons_set_display_step( start_time, end_time ) {
 //  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d display=TEXT -d .cgifields=display -d set_display="Use Selection Above" https://ssd.jpl.nasa.gov/horizons.cgi -v  
-  
-  requestor.post({ jar: j, url: horizonsUri, form: {display:'TEXT', set_display:'Use Selection Above'}}, function( error, response, body ) {
-    
-    var dom = cheerio.load(body);
-    var errorNode = dom('.error');
-    if( errorNode.length > 0 ) {
-      console.log( "Horizons returned an error.");
-      return "error";
-    } else {
-      var step5 = horizons_send_query( start_time, end_time );
-      // console.log("step5: " + step5);
-      return step5;
-    }
-    
-  });
-
+  var thisObj = new Object();
+  return requestor.post({ jar: j, url: horizonsUri, form: {display:'TEXT', set_display:'Use Selection Above'}})
+    .then( function( body ) {
+      console.log( 'display: ' + start_time );
+      console.log( 'display: ' + end_time );
+      var dom = cheerio.load(body);
+      var errorNode = dom('.error');
+      if( errorNode.length > 0 ) {
+        console.log( "Horizons returned an error.");
+        return "error";
+      } else {
+        thisObj.now = start_time;
+        thisObj.then = end_time;
+        return thisObj;
+      }
+    })
+    .catch( function( err ) {
+      throw new Error( err );
+    });
 }
 
 function horizons_send_query( start_time, end_time ) {
@@ -165,29 +193,40 @@ function horizons_send_query( start_time, end_time ) {
 
 // *******************************************************************************
   
-  requestor.post({ jar: j, url: horizonsUri, form: {go:'Generate Ephemeris'}}, function( error, response, body ) {
-    
-    var dom = cheerio.load(body);
-    var errorNode = dom('.error');
-    if( errorNode.length > 0 ) {
-      console.log( "Horizons returned an error.");
-      return "error";
-    } else {
-      var lt = find_light_time( body, start_time, end_time );
-      // console.log(j);
-      // console.log("step5: " + body);
-      
-      return lt;
-    }
-    
-  });
+  return requestor.post({ jar: j, url: horizonsUri, form: {go:'Generate Ephemeris'}})
+    .then( function( body ) {
+      console.log( 'send: ' + start_time );
+      console.log( 'send: ' + end_time );
 
+      var dom = cheerio.load(body);
+      var errorNode = dom('.error');
+      if( errorNode.length > 0 ) {
+        console.log( "Horizons returned an error.");
+        return "error";
+      } else {
+        var lt = extract_one_way_light_time( body, start_time, end_time );
+        // console.log(j);
+        // console.log("step5: " + body);
+        var rt = convert_owlt_to_round_trip( lt );
+        return rt;
+      }
+
+    })
+    .catch( function( err ) {
+      throw new Error( err );
+    });
 }
 
-function find_light_time( output, start_time, end_time ) {
+function extract_one_way_light_time( output, start_time, end_time ) {
   //  this is a little fragile
   //  the times appear in the output table more than once as of 2018-03-14, but....
   var lt = output.split(start_time)[2].split(end_time)[0].trimLeft();
+  return lt;
+}
+
+function convert_owlt_to_round_trip( one_way_light_time ) {
+  var rt_time_decimal = one_way_light_time * 2;
+  return moment().startOf( 'day' ).add( rt_time_decimal, 'minutes' ).format( 'm:ss' );
 }
 
 function respond_to_tweet(screen_name, id_str, body_name, light_time) {
@@ -302,4 +341,9 @@ app.all("/tweet", function (request, response) {
   
   /* TODO: Handle proper responses based on whether the tweets succeed, using Promises. For now, let's just return a success message no matter what. id:15 gh:20 ic:gh*/
   response.sendStatus(200);
+});
+
+// listen for requests :)
+var listener = app.listen(process.env.PORT, function () {
+  console.log('Your app is listening on port ' + listener.address().port);
 });
