@@ -18,7 +18,6 @@ var moment = require('moment');
 
 var horizonsUri = 'https://ssd.jpl.nasa.gov/horizons.cgi';
 
-// http://expressjs.com/en/starter/basic-routing.html
 app.get("/", function (request, response) {      
   response.send('This will be a bot');
 });
@@ -41,7 +40,7 @@ app.get("/api/v1/:astroBody", function( request, response ) {
 
 //  TODO: extract the request pattern id:4 gh:7 ic:gh
 function horizons_find_astro_body_step( name ) {
-//  curl -d sstr=sedna -d body_group=all -d find_body=Search -d mb_list=planet https://ssd.jpl.nasa.gov/horizons.cgi -v 
+  
   var time_boundaries = new Object();
   var step1 = requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}});
   
@@ -56,7 +55,6 @@ function horizons_find_astro_body_step( name ) {
       }
     })
     .catch ( function (error) {
-      // console.log( 'Exception1: ' + error);
       throw new Error( error );
     });
   
@@ -81,26 +79,13 @@ function horizons_find_astro_body_step( name ) {
     .catch( function( err ) {
       throw new Error( err );
     });
-  
-          // var step5 = horizons_send_query( start_time, end_time );
-        // console.log("step5: " + step5);
-
-
-  // var step3 = step2.then( function( stepData ) {
-  //     console.log(step2);
-  //     console.log( stepData.now );
-  //     console.log( stepData.then );
-  //     var step3 = horizons_set_display_step( stepData.now, stepData.then);
-  //     return step3;
-  // }).catch( function( err ) {
-  //   throw new Error( err );
-  // });
-  
+    
   return step5;
+  
 }
 
 function horizons_set_time_interval_step() {
-//  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d start_time="2018-02-25 12:00" -d stop_time="2018-02-25 12:01" -d step_size=1 -d interval_mode=f -d set_time_span="Use Specified Times" https://ssd.jpl.nasa.gov/horizons.cgi -v
+
   var now = new Date();
   var then = new Date();
   then.setMinutes(now.getMinutes()+1);
@@ -120,9 +105,6 @@ function horizons_set_time_interval_step() {
         time_boundaries.start = now.replace( 'T', ' ');
         time_boundaries.end = then.replace( 'T', ' ');
         return time_boundaries;
-        // var step3 = horizons_set_out_table_step( now.replace( 'T', ' ' ), then.replace( 'T', ' ') );
-        // console.log("step3: " + settings);
-        // return step3;
       }
     })
     .catch(function( error ) {
@@ -131,7 +113,7 @@ function horizons_set_time_interval_step() {
 }
 
 function horizons_set_out_table_step( ) {
-//  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d oq_21=1 -d time_digits=MINUTES -d set_table="Use Selected Settings" -d set_table_settings=1 https://ssd.jpl.nasa.gov/horizons.cgi -v
+
   return requestor.post({ jar: j, url: horizonsUri, form: {oq_21:'1', time_digits:'MINUTES', obj_data:'NO', set_table_settings:'1', set_table: 'Use Settings Abbove'}})
     .then( function( body ) {
       var dom = cheerio.load(body);
@@ -142,9 +124,6 @@ function horizons_set_out_table_step( ) {
         return "error";
       } else {
         return;
-        // var step4 = horizons_set_display_step( start_time, end_time );
-        // console.log("step4: " + settings);
-        // return step4;
       }
     })
     .catch(function( error ) {
@@ -153,7 +132,7 @@ function horizons_set_out_table_step( ) {
 }
 
 function horizons_set_display_step( start_time, end_time ) {
-//  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d display=TEXT -d .cgifields=display -d set_display="Use Selection Above" https://ssd.jpl.nasa.gov/horizons.cgi -v  
+
   return requestor.post({ jar: j, url: horizonsUri, form: {display:'TEXT', set_display:'Use Selection Above'}})
     .then( function( body ) {
       var dom = cheerio.load(body);
@@ -192,8 +171,6 @@ function horizons_send_query( time_boundaries ) {
         return "error";
       } else {
         var lt = extract_one_way_light_time( body, time_boundaries );
-        // console.log(j);
-        // console.log("step5: " + body);
         var rt = convert_owlt_to_round_trip( lt );
         return rt;
       }
@@ -282,9 +259,7 @@ app.all("/tweet", function (request, response) {
 
     T.get('search/tweets', { q: 'to:' + process.env.TESTING_TWITTER_HANDLE + ' -from:' + process.env.TESTING_TWITTER_HANDLE, since_id: last_mention_id, result_type: "recent", count: 100 }, function(err, data, response) {
       /* Next, let's search for Tweets that mention our bot, starting after the last mention we responded to. */
-      // console.log(data);
       if (data.statuses.length){
-        // console.log(data.statuses);
         data.statuses.forEach(function(status) {
           console.log(status.id_str);
           console.log(status.text);
