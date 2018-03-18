@@ -9,7 +9,8 @@
 var express = require('express');
 var app = express();
 
-var requestor = require('request');
+// var requestor = require('request');
+var requestor = require('request-promise')
 var j = requestor.jar();
 
 var cheerio = require('cheerio');
@@ -28,9 +29,14 @@ app.get("/", function (request, response) {
 
 app.get("/api/v1/:astroBody", function( request, response ) {
   j = requestor.jar();  //  need a new jar on every request to reset the session
-  var step1 = horizons_find_astro_body_step( request.params.astroBody );
-  console.log("step: " + step1);
-  response.send(step1);
+  horizons_find_astro_body_step( request.params.astroBody )
+    .then( function ( stepInfo ) {
+      console.log("step: " + stepInfo);
+      response.send(stepInfo);
+  })
+  .catch( function( error ) {
+    console.log( 'Exception2: ' + error );
+  });
 });
 
 app.post("/api/v1", function( request, response ) {
@@ -49,23 +55,28 @@ var listener = app.listen(process.env.PORT, function () {
 
 //  TODO: extract the request pattern id:4 gh:7 ic:gh
 function horizons_find_astro_body_step( name ) {
-  console.clear();
 //  curl -d sstr=sedna -d body_group=all -d find_body=Search -d mb_list=planet https://ssd.jpl.nasa.gov/horizons.cgi -v 
-  requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}}, function( error, response, body ) {
-    
-    var dom = cheerio.load(body);
-    var errorNode = dom('.error');
-    if( errorNode.length > 0 ) {
-      console.log( "Horizons returned an error; most likely the celestial body you requested could not be found.");
-      return "error";
-    } else {
-      var step2 = horizons_set_time_interval_step();
-      // console.log("step2: " + step2);
-      // console.log(j);
-      return step2;
-    }
-        
-  });
+  var step2 = {};
+  return requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}})
+    .then ( function( body ) {
+      var dom = cheerio.load(body);
+      var errorNode = dom('.error');
+      if( errorNode.length > 0 ) {
+        var errorStr = 'Horizons returned an error; most likely the celestial body you requested, ' + name + ', could not be found.';
+        console.log( 'Pre-throw: ' + errorStr );
+        throw new Error(errorStr);
+      } else {
+        step2 = horizons_set_time_interval_step();
+        console.log("step2: " + step2);
+        // console.log(j);
+        // return step2;
+      }
+    }).then( function() {
+      var step3 = horizons_set_out_table_step( step2.now, step2.then);
+      return step3;
+  }).catch ( function (error) {
+      console.log( 'Exception1: ' + error);
+    });
   
 }
 
@@ -76,29 +87,36 @@ function horizons_set_time_interval_step() {
   then.setMinutes(now.getMinutes()+1);
   now = moment(now).format('YYYY-MMM-D HH:mm');
   then = moment(then).format('YYYY-MMM-D HH:mm');
+  var thisObj = new Object();
 
-  requestor.post({ jar: j, url: horizonsUri, form: {start_time:now, stop_time:then, step_size:'1', interval_mode:'m', set_time_span: 'Use Specified Times'}}, function( error, response, body ) {
-    
+  return requestor.post({ jar: j, url: horizonsUri, form: {start_time:now, stop_time:then, step_size:'1', interval_mode:'m', set_time_span: 'Use Specified Times'}})
+  .then( function( body ) {
     var dom = cheerio.load(body);
     var errorNode = dom('.error');
     var settings = dom('h3').next();
     if( errorNode.length > 0 ) {
-      console.log( "Horizons returned an error.");
-      return "error";
+      var errorStr = 'Horizons returned an error.';
+      throw new Error( errorStr );
     } else {
-      var step3 = horizons_set_out_table_step( now.replace( 'T', ' ' ), then.replace( 'T', ' ') );
+      thisObj.now = now.replace( 'T', ' ');
+      thisObj.then = then.replace( 'T', ' ');
+      return thisObj;
+      // var step3 = horizons_set_out_table_step( now.replace( 'T', ' ' ), then.replace( 'T', ' ') );
       // console.log("step3: " + settings);
-      return step3;
+      // return step3;
     }
-    
+
+  })
+  .catch(function( error ) {
+    console.log(error);
   });
-  
 }
 
 function horizons_set_out_table_step( start_time, end_time ) {
 //  curl --cookie "CGISESSID=f18cbbf793f8a319bd856e1e9738a11b" -d oq_21=1 -d time_digits=MINUTES -d set_table="Use Selected Settings" -d set_table_settings=1 https://ssd.jpl.nasa.gov/horizons.cgi -v
   requestor.post({ jar: j, url: horizonsUri, form: {oq_21:'1', time_digits:'MINUTES', obj_data:'NO', set_table_settings:'1', set_table: 'Use Settings Abbove'}}, function( error, response, body ) {
-    
+    console.log( 'out table: ' + start_time );
+    console.log( 'out table: ' + end_time );
     var dom = cheerio.load(body);
     var errorNode = dom('.error');
     var settings = dom('h3').next();
@@ -106,9 +124,9 @@ function horizons_set_out_table_step( start_time, end_time ) {
       console.log( "Horizons returned an error.");
       return "error";
     } else {
-      var step4 = horizons_set_display_step( start_time, end_time );
+      // var step4 = horizons_set_display_step( start_time, end_time );
       // console.log("step4: " + settings);
-      return step4;
+      // return step4;
     }
     
   });
@@ -158,6 +176,7 @@ function horizons_send_query( start_time, end_time ) {
       var lt = find_light_time( body, start_time, end_time );
       // console.log(j);
       // console.log("step5: " + body);
+      
       return lt;
     }
     
@@ -169,6 +188,44 @@ function find_light_time( output, start_time, end_time ) {
   //  this is a little fragile
   //  the times appear in the output table more than once as of 2018-03-14, but....
   var lt = output.split(start_time)[2].split(end_time)[0].trimLeft();
+}
+
+function respond_to_tweet(screen_name, id_str, body_name, light_time) {
+    /* Now we can respond to each tweet. */
+  T.post('statuses/update', {
+    status: '@' + screen_name + ', the round-trip light-time to ' + body_name + ' is ' + light_time,
+    in_reply_to_status_id: id_str
+  }, function(err, data, response) {
+    if (err){
+        /* TODO: Proper error handling? id:14 gh:19 ic:gh*/
+      console.log('Error!');
+      console.log(err);
+    }
+    else{
+      fs.writeFile(__dirname + '/last_mention_id.txt', status.id_str, function (err) {
+        /* TODO: Error handling? id:13 gh:18 ic:gh*/
+      });
+    }
+  });
+}
+
+function respond_to_dm(sender_id, id_str, body_name, light_time) {
+  /* Now we can respond to each tweet. */
+  T.post('direct_messages/new', {
+    user_id: sender_id,
+    text: 'tTe round-trip light-time to ' + body_name + ' is ' + light_time
+  }, function(err, data, response) {
+    if (err){
+      /* TODO: Proper error handling? id:11 gh:16 ic:gh*/
+      console.log('Error!');
+      console.log(err);
+    }
+    else{
+      fs.writeFile(__dirname + '/last_dm_id.txt', id_str, function (err) {
+        /* TODO: Error handling? id:12 gh:17 ic:gh*/
+      });
+    }
+  });
 }
 
 //*****************  BOT-NESS  *********************
@@ -191,49 +248,24 @@ var fs = require('fs'),
     T = new Twit(config.twitter),
     stream = T.stream('statuses/sample');
 
-var bot_responses = [
-  "I am awake!",
-  "I'm awake!",
-  "I dozed off.",
-  "I dozed off, but I am awake now!",
-  "I dozed off, but I'm awake now!"
-];
-
-function random_from_array(arr){
-  return arr[Math.floor(Math.random()*arr.length)]; 
-}
-
 app.all("/tweet", function (request, response) {
   /* Respond to @ mentions */
   fs.readFile(__dirname + '/last_mention_id.txt', 'utf8', function (err, last_mention_id) {
     /* First, let's load the ID of the last tweet we responded to. */
     console.log('last_mention_id:', last_mention_id);
 
-    T.get('search/tweets', { q: 'to:' + process.env.TESTING_TWITTER_HANDLE + ' -from:' + process.env.TESTING_TWITTER_HANDLE, since_id: last_mention_id }, function(err, data, response) {
+    T.get('search/tweets', { q: 'to:' + process.env.TESTING_TWITTER_HANDLE + ' -from:' + process.env.TESTING_TWITTER_HANDLE, since_id: last_mention_id, result_type: "recent", count: 100 }, function(err, data, response) {
       /* Next, let's search for Tweets that mention our bot, starting after the last mention we responded to. */
+      // console.log(data);
       if (data.statuses.length){
         // console.log(data.statuses);
         data.statuses.forEach(function(status) {
           console.log(status.id_str);
           console.log(status.text);
           console.log(status.user.screen_name);
-
-          /* Now we can respond to each tweet. */
-          T.post('statuses/update', {
-            status: '@' + status.user.screen_name + ' ' + random_from_array(bot_responses),
-            in_reply_to_status_id: status.id_str
-          }, function(err, data, response) {
-            if (err){
-                /* TODO: Proper error handling? id:14 gh:19 ic:gh*/
-              console.log('Error!');
-              console.log(err);
-            }
-            else{
-              fs.writeFile(__dirname + '/last_mention_id.txt', status.id_str, function (err) {
-                /* TODO: Error handling? id:13 gh:18 ic:gh*/
-              });
-            }
-          });
+          var tweet_content = status.text.replace('@' + process.env.TESTING_TWITTER_HANDLE + ' ', '');
+          console.log(tweet_content);
+          //  TODO  send query and respond
         });
       } else if (err) {
         console.log(err);
@@ -257,23 +289,7 @@ app.all("/tweet", function (request, response) {
           console.log(dm.sender_id);
           console.log(dm.id_str);
           console.log(dm.text);
-
-          /* Now we can respond to each tweet. */
-          T.post('direct_messages/new', {
-            user_id: dm.sender_id,
-            text: random_from_array(bot_responses)
-          }, function(err, data, response) {
-            if (err){
-              /* TODO: Proper error handling? id:11 gh:16 ic:gh*/
-              console.log('Error!');
-              console.log(err);
-            }
-            else{
-              fs.writeFile(__dirname + '/last_dm_id.txt', dm.id_str, function (err) {
-                /* TODO: Error handling? id:12 gh:17 ic:gh*/
-              });
-            }
-          });
+          //  TODO  send query and respond to dm
         });
       } else if (err) {
         console.log(err);
