@@ -96,7 +96,7 @@ function get_roundtrip_light_time_steps_promise( body_name ) {
 
 //  TODO: extract the request pattern id:4 gh:7 ic:gh
 
-//  TODO:  something's up with the times - I'm either getting 16:33 or 20:27 no matter what body names I use.
+//  TODO: something's up with the times - I'm either getting 16:33 or 20:27 no matter what body names I use. id:17 gh:23 ic:gh
 //          Argh! for some bodies there are multiple possible responses, and you've got to select amongst them
 
 /******************  multi-body selection  ******************
@@ -315,7 +315,7 @@ app.all("/tweet", function (request, response) {
           console.log(status.user.screen_name);
           var tweet_content = status.text.replace('@' + process.env.TESTING_TWITTER_HANDLE + ' ', '');
           console.log(tweet_content);
-          //  TODO  send query and respond
+          //  TODO send query and respond id:16 gh:22 ic:gh
         });
       } else if (err) {
         console.log(err);
@@ -339,7 +339,7 @@ app.all("/tweet", function (request, response) {
           console.log(dm.sender_id);
           console.log(dm.id_str);
           console.log(dm.text);
-          //  TODO  send query and respond to dm
+          //  TODO send query and respond to dm id:18 gh:24 ic:gh
         });
       } else if (err) {
         console.log(err);
