@@ -10,7 +10,7 @@ var express = require('express');
 var app = express();
 
 var requestor = require('request-promise')
-var j = requestor.jar();
+var j = {};
 
 var cheerio = require('cheerio');
 
@@ -23,16 +23,31 @@ app.get("/", function (request, response) {
 });
 
 app.get("/api/v1/:astroBody", function( request, response ) {
-  var time_boundaries = new Object();
-  j = requestor.jar();  //  need a new jar on every request to reset the session
+  
+  var outcome = get_roundtrip_light_time_steps_promise( request.params.astroBody );
+  
+  outcome.then( function( steps_output ) {
+    response.send( steps_output );    
+  })
+  .catch ( function (error) {
+    console.log(error);
+    response.status(503).send(error.message);
+    throw new Error( error );
+  });
+  
+});
 
-  var step1 = horizons_find_astro_body_step( request.params.astroBody );
+function get_roundtrip_light_time_steps_promise( body_name ) {
+  
+  var time_boundaries = new Object();
+
+  var step1 = horizons_find_astro_body_step( body_name );
 
   var step2 = step1.then ( function( body ) {
       var dom = cheerio.load(body);
       var errorNode = dom('.error');
       if( errorNode.length > 0 ) {
-        var errorStr = 'Horizons returned an error; most likely the celestial body you requested, ' + name + ', could not be found.';
+        var errorStr = 'Horizons returned an error; most likely the celestial body you requested, ' + body_name + ', could not be found.';
         throw new Error(errorStr);
       } else {
         return horizons_set_time_interval_step();
@@ -66,22 +81,45 @@ app.get("/api/v1/:astroBody", function( request, response ) {
     
   step5.then( function( stepData ) {
     console.log( 'final info: ' + stepData );
-    response.send( stepData );
     })
     .catch( function( err ) {
       throw new Error( err );
     });
   
   return step5;
-});
+
+}
 
 //  fake out a Horizon API
 //    Horizon tracks the state of the current configuration with sessions, 
 //    so we need to reuse the session cookie from the first request
 
 //  TODO: extract the request pattern id:4 gh:7 ic:gh
+
+//  TODO:  something's up with the times - I'm either getting 16:33 or 20:27 no matter what body names I use.
+//          Argh! for some bodies there are multiple possible responses, and you've got to select amongst them
+
+/******************  multi-body selection  ******************
+<form method="post" action="https://ssd.jpl.nasa.gov/horizons.cgi#top" enctype="multipart/form-data">
+<h3>select from 2 matching bodies:</h3>
+<select name="body" size="2">
+<option value="MB:5">Jupiter Barycenter</option>
+<option value="MB:599">Jupiter</option>
+</select><br>
+<br>
+<input type="submit" name="select_body" value="Select Indicated Body">
+&nbsp;&nbsp;&nbsp;
+<input type="submit" name="cancel" value="Cancel">
+</form>
+
+request content
+body=MB:599
+select_body=Select Indicated Body
+************************************************************/
+
 function horizons_find_astro_body_step( name ) {
   
+  j = requestor.jar();  //  need a new jar on every request to reset the session
   return requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}});  
   
 }
@@ -95,11 +133,13 @@ function horizons_set_time_interval_step() {
   then = moment(then).format('YYYY-MMM-D HH:mm');
   var time_boundaries = new Object();
 
+  // console.log(j);
   return requestor.post({ jar: j, url: horizonsUri, form: {start_time:now, stop_time:then, step_size:'1', interval_mode:'m', set_time_span: 'Use Specified Times'}})
     .then( function( body ) {
       var dom = cheerio.load(body);
       var errorNode = dom('.error');
       var settings = dom('h3').next();
+      console.log(settings.html());
       if( errorNode.length > 0 ) {
         var errorStr = 'Horizons returned an error.';
         throw new Error( errorStr );
@@ -110,7 +150,7 @@ function horizons_set_time_interval_step() {
       }
     })
     .catch(function( error ) {
-      console.log(error);
+      throw new Error( error );
     });
 }
 
@@ -121,6 +161,7 @@ function horizons_set_out_table_step( ) {
       var dom = cheerio.load(body);
       var errorNode = dom('.error');
       var settings = dom('h3').next();
+      // console.log(settings.html());
       if( errorNode.length > 0 ) {
         console.log( "Horizons returned an error.");
         return "error";
@@ -129,7 +170,7 @@ function horizons_set_out_table_step( ) {
       }
     })
     .catch(function( error ) {
-      console.log(error);
+      throw new Error( error );
     });    
 }
 
@@ -139,6 +180,8 @@ function horizons_set_display_step( start_time, end_time ) {
     .then( function( body ) {
       var dom = cheerio.load(body);
       var errorNode = dom('.error');
+      var settings = dom('h3').next();
+      // console.log(settings.html());
       if( errorNode.length > 0 ) {
         console.log( "Horizons returned an error.");
         return "error";
@@ -146,8 +189,8 @@ function horizons_set_display_step( start_time, end_time ) {
         return;
       }
     })
-    .catch( function( err ) {
-      throw new Error( err );
+    .catch( function( error ) {
+      throw new Error( error );
     });
 }
 
@@ -178,8 +221,8 @@ function horizons_send_query( time_boundaries ) {
       }
 
     })
-    .catch( function( err ) {
-      throw new Error( err );
+    .catch( function( error ) {
+      throw new Error( error );
     });
 }
 
@@ -191,7 +234,9 @@ function extract_one_way_light_time( output, time_boundaries ) {
 }
 
 function convert_owlt_to_round_trip( one_way_light_time ) {
+  console.log(one_way_light_time);
   var rt_time_decimal = one_way_light_time * 2;
+  console.log(rt_time_decimal);
   return moment().startOf( 'day' ).add( rt_time_decimal, 'minutes' ).format( 'm:ss' );
 }
 
@@ -205,6 +250,7 @@ function respond_to_tweet(screen_name, id_str, body_name, light_time) {
         /* TODO: Proper error handling? id:14 gh:19 ic:gh*/
       console.log('Error!');
       console.log(err);
+      throw new Error( err );
     }
     else{
       fs.writeFile(__dirname + '/last_mention_id.txt', status.id_str, function (err) {
@@ -224,6 +270,7 @@ function respond_to_dm(sender_id, id_str, body_name, light_time) {
       /* TODO: Proper error handling? id:11 gh:16 ic:gh*/
       console.log('Error!');
       console.log(err);
+      throw new Error( err );
     }
     else{
       fs.writeFile(__dirname + '/last_dm_id.txt', id_str, function (err) {
