@@ -17,6 +17,7 @@
     "request-promise": "^4.2.2",
     "cheerio": "^1.0.0-rc.2",
     "moment": "^2.21.0",
+    "moment-duration-format":"^2.2.2",
 		"twit": "^2.1.0"
   },
   "engines": {

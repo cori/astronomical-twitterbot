@@ -15,6 +15,7 @@ var j = {};
 var cheerio = require('cheerio');
 
 var moment = require('moment');
+var momentDurationFormatSetup = require("moment-duration-format");
 
 var horizonsUri = 'https://ssd.jpl.nasa.gov/horizons.cgi';
 
@@ -43,8 +44,8 @@ function get_roundtrip_light_time_steps_promise( body_name ) {
 
   var step1 = horizons_find_astro_body_step( body_name );
 
-  var step2 = step1.then ( function( body ) {
-      var dom = cheerio.load(body);
+  var step2 = step1.then ( function( html ) {
+      var dom = cheerio.load( html );
       var errorNode = dom('.error');
       if( errorNode.length > 0 ) {
         var errorStr = 'Horizons returned an error; most likely the celestial body you requested, ' + body_name + ', could not be found.';
@@ -120,7 +121,40 @@ select_body=Select Indicated Body
 function horizons_find_astro_body_step( name ) {
   
   j = requestor.jar();  //  need a new jar on every request to reset the session
-  return requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}});  
+  return requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}})
+    .then( function( html ) {
+      var dom = cheerio.load(html);
+      var errorNode = dom('.error');
+      var settings = dom('h3').next();
+      var multiple_body_options = dom('select[name="body"]>option');
+      if( multiple_body_options.length > 0 ) {
+        
+        multiple_body_options.each( function( ) {
+          var option = dom(this);
+          if( name.toLowerCase() == option.text().toLowerCase() ) {
+            // console.log('matched option: ' + option.text().toLowerCase());
+            // console.log('submitted name: ' + name.toLowerCase());
+            return horizons_pick_astro_body( option.val() );
+          }
+        });
+        
+        //  return the first option if we don't find an exact match
+        // console.log( 'first option: ' + dom(multiple_body_options[0]).text() );
+        return horizons_pick_astro_body( dom(multiple_body_options[0]).val() );
+      }
+      return html;
+    })
+    .catch(function( error ) {
+      console.log(error);
+      throw new Error( error );
+    });
+  
+}
+
+function horizons_pick_astro_body( body_id ) {
+  
+  var formObj = {body:body_id, select_body:'Select Indicated Body'};
+  return horizons_request( formObj );
   
 }
 
@@ -135,11 +169,11 @@ function horizons_set_time_interval_step() {
 
   // console.log(j);
   return requestor.post({ jar: j, url: horizonsUri, form: {start_time:now, stop_time:then, step_size:'1', interval_mode:'m', set_time_span: 'Use Specified Times'}})
-    .then( function( body ) {
-      var dom = cheerio.load(body);
+    .then( function( html ) {
+      var dom = cheerio.load( html );
       var errorNode = dom('.error');
-      var settings = dom('h3').next();
-      console.log(settings.html());
+      var settings = dom('h3').first().next();
+      // console.log(settings.html());
       if( errorNode.length > 0 ) {
         var errorStr = 'Horizons returned an error.';
         throw new Error( errorStr );
@@ -226,6 +260,23 @@ function horizons_send_query( time_boundaries ) {
     });
 }
 
+function horizons_request( formObj ) {
+  return requestor.post({ jar: j, url: horizonsUri, form: formObj })
+    .then( function( html ) {
+      var dom = cheerio.load(html);
+      var errorNode = dom('.error');
+      var settings = dom('h3').next();
+      if( errorNode.length > 0 ) {
+        var errMsg = "Horizons returned an error.";
+        throw new Error( errMsg );
+      }
+      return html;
+    })
+    .catch(function( error ) {
+      //  noop; these are handled further up the call stack
+    });
+}
+
 function extract_one_way_light_time( output, time_boundaries ) {
   //  this is a little fragile
   //  the times appear in the output table more than once as of 2018-03-14, but....
@@ -234,10 +285,9 @@ function extract_one_way_light_time( output, time_boundaries ) {
 }
 
 function convert_owlt_to_round_trip( one_way_light_time ) {
-  console.log(one_way_light_time);
   var rt_time_decimal = one_way_light_time * 2;
-  console.log(rt_time_decimal);
-  return moment().startOf( 'day' ).add( rt_time_decimal, 'minutes' ).format( 'm:ss' );
+  var dur = moment.duration(rt_time_decimal, 'minutes');
+  return dur.format('mm:ss');
 }
 
 function respond_to_tweet(screen_name, id_str, body_name, light_time) {
