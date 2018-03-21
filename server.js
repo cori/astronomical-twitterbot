@@ -19,6 +19,9 @@ var momentDurationFormatSetup = require("moment-duration-format");
 
 var horizonsUri = 'https://ssd.jpl.nasa.gov/horizons.cgi';
 
+var time_boundaries = new Object();
+
+
 app.get("/", function (request, response) {      
   response.send('This will be a bot');
 });
@@ -40,8 +43,8 @@ app.get("/api/v1/:astroBody", function( request, response ) {
 
 function get_roundtrip_light_time_steps_promise( body_name ) {
   
-  var time_boundaries = new Object();
-
+  time_boundaries = new Object();
+  
   var step1 = horizons_find_astro_body_step( body_name );
 
   var step2 = step1.then ( function( html ) {
@@ -59,6 +62,7 @@ function get_roundtrip_light_time_steps_promise( body_name ) {
     });
   
   var step3 = step2.then( function( stepData ) {
+    console.log(stepData);
     time_boundaries = stepData;
     return horizons_set_out_table_step();
     })
@@ -81,6 +85,7 @@ function get_roundtrip_light_time_steps_promise( body_name ) {
     });
     
   step5.then( function( stepData ) {
+    console.log(j);
     console.log( 'final info: ' + stepData );
     })
     .catch( function( err ) {
@@ -120,7 +125,8 @@ select_body=Select Indicated Body
 
 function horizons_find_astro_body_step( name ) {
   
-  j = requestor.jar();  //  need a new jar on every request to reset the session
+  //  TODO: it seems like this doesn't always reset the session id, because we're getting back the same time for multiple bodies in one run
+  // j = requestor.jar();  //  need a new jar on every request to reset the session
   return requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}})
     .then( function( html ) {
       var dom = cheerio.load(html);
@@ -165,7 +171,7 @@ function horizons_set_time_interval_step() {
   then.setMinutes(now.getMinutes()+1);
   now = moment(now).format('YYYY-MMM-D HH:mm');
   then = moment(then).format('YYYY-MMM-D HH:mm');
-  var time_boundaries = new Object();
+  // var time_boundaries = new Object();
 
   // console.log(j);
   return requestor.post({ jar: j, url: horizonsUri, form: {start_time:now, stop_time:then, step_size:'1', interval_mode:'m', set_time_span: 'Use Specified Times'}})
@@ -240,7 +246,6 @@ function horizons_send_query( time_boundaries ) {
 // Cannot interpret date. Type "?!" or try YYYY-Mon-Dy {HH:MM} format.
 
 // *******************************************************************************
-  
   return requestor.post({ jar: j, url: horizonsUri, form: {go:'Generate Ephemeris'}})
     .then( function( body ) {
       var dom = cheerio.load(body);
@@ -278,8 +283,11 @@ function horizons_request( formObj ) {
 }
 
 function extract_one_way_light_time( output, time_boundaries ) {
+  console.log('before split: ' + time_boundaries);
   //  this is a little fragile
   //  the times appear in the output table more than once as of 2018-03-14, but....
+  //  TODO  some kind of race condition here; on occasion time_boundries is undefined when we get here
+  //    particularly (it seems) when there are multiple tweets/dms to handle
   var lt = output.split(time_boundaries.start)[2].split(time_boundaries.end)[0].trimLeft();
   return lt;
 }
@@ -292,8 +300,9 @@ function convert_owlt_to_round_trip( one_way_light_time ) {
 
 function respond_to_tweet(screen_name, id_str, body_name, light_time) {
     /* Now we can respond to each tweet. */
+  // console.log(screen_name);
   T.post('statuses/update', {
-    status: '@' + screen_name + ', the round-trip light-time to ' + body_name + ' is ' + light_time,
+    status: '@' + screen_name + ' the round-trip light-time to ' + body_name + ' is ' + light_time,
     in_reply_to_status_id: id_str
   }, function(err, data, response) {
     if (err){
@@ -303,7 +312,7 @@ function respond_to_tweet(screen_name, id_str, body_name, light_time) {
       throw new Error( err );
     }
     else{
-      fs.writeFile(__dirname + '/last_mention_id.txt', status.id_str, function (err) {
+      fs.writeFile(__dirname + '/last_mention_id.txt', id_str, function (err) {
         /* TODO: Error handling? id:13 gh:18 ic:gh*/
       });
     }
@@ -314,7 +323,7 @@ function respond_to_dm(sender_id, id_str, body_name, light_time) {
   /* Now we can respond to each tweet. */
   T.post('direct_messages/new', {
     user_id: sender_id,
-    text: 'tTe round-trip light-time to ' + body_name + ' is ' + light_time
+    text: 'The round-trip light-time to ' + body_name + ' is ' + light_time
   }, function(err, data, response) {
     if (err){
       /* TODO: Proper error handling? id:11 gh:16 ic:gh*/
@@ -360,12 +369,24 @@ app.all("/tweet", function (request, response) {
       /* Next, let's search for Tweets that mention our bot, starting after the last mention we responded to. */
       if (data.statuses.length){
         data.statuses.forEach(function(status) {
-          console.log(status.id_str);
-          console.log(status.text);
-          console.log(status.user.screen_name);
+          j = requestor.jar();
+          j.Store.removeCookies(horizonsUri);
+          // console.log(status.id_str);
+          // console.log(status.text);
+          // console.log(status.user.screen_name);
           var tweet_content = status.text.replace('@' + process.env.TESTING_TWITTER_HANDLE + ' ', '');
-          console.log(tweet_content);
+          // console.log(tweet_content);
           //  TODO send query and respond id:16 gh:22 ic:gh
+          var horizons_output = get_roundtrip_light_time_steps_promise( tweet_content );
+          
+          horizons_output.then( function( rt_time ) {
+            respond_to_tweet( status.user.screen_name, status.id_str, tweet_content, rt_time );
+          })
+          .catch( function( error ) {
+            console.log( error );
+          });
+          sleep(500).then();
+                               
         });
       } else if (err) {
         console.log(err);
@@ -386,10 +407,20 @@ app.all("/tweet", function (request, response) {
       /* Next, let's search for Tweets that mention our bot, starting after the last mention we responded to. */
       if (dms.length){
         dms.forEach(function(dm) {
-          console.log(dm.sender_id);
-          console.log(dm.id_str);
-          console.log(dm.text);
+          j = requestor.jar();
+          j.Store.removeCookies(horizonsUri);
+          // console.log(dm.sender_id);
+          // console.log(dm.id_str);
+          // console.log(dm.text);
           //  TODO send query and respond to dm id:18 gh:24 ic:gh
+          var horizons_output = get_roundtrip_light_time_steps_promise( dm.text );
+          
+          horizons_output.then( function( rt_time ) {
+            respond_to_dm( dm.sender_id, dm.id_str, dm.text, rt_time );
+          })
+          .catch( function( error ) {
+            console.log( error );
+          });
         });
       } else if (err) {
         console.log(err);
@@ -403,6 +434,10 @@ app.all("/tweet", function (request, response) {
   /* TODO: Handle proper responses based on whether the tweets succeed, using Promises. For now, let's just return a success message no matter what. id:15 gh:20 ic:gh*/
   response.sendStatus(200);
 });
+
+function sleep (time) {
+  return new Promise((resolve) => setTimeout(resolve, time));
+}
 
 // listen for requests :)
 var listener = app.listen(process.env.PORT, function () {
