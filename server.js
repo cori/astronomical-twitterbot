@@ -125,7 +125,7 @@ select_body=Select Indicated Body
 
 function horizons_find_astro_body_step( name ) {
   
-  //  TODO: it seems like this doesn't always reset the session id, because we're getting back the same time for multiple bodies in one run
+  //  TODO: it seems like this doesn't always reset the session id, because we're getting back the same time for multiple bodies in one run id:20 gh:27 ic:gh
   // j = requestor.jar();  //  need a new jar on every request to reset the session
   return requestor.post({ jar: j, url: horizonsUri, form: {sstr:name, body_group:'all', find_body:'Search', mb_list:'planet'}})
     .then( function( html ) {
@@ -286,7 +286,7 @@ function extract_one_way_light_time( output, time_boundaries ) {
   console.log('before split: ' + time_boundaries);
   //  this is a little fragile
   //  the times appear in the output table more than once as of 2018-03-14, but....
-  //  TODO  some kind of race condition here; on occasion time_boundries is undefined when we get here
+  //  TODO some kind of race condition here; on occasion time_boundries is undefined when we get here id:19 gh:26 ic:gh
   //    particularly (it seems) when there are multiple tweets/dms to handle
   var lt = output.split(time_boundaries.start)[2].split(time_boundaries.end)[0].trimLeft();
   return lt;
